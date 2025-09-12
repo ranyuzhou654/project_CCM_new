@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Infographic: Robust Causal Inference with CCM & Surrogate Data</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Energetic & Playful -->
+    <!-- Application Structure Plan: The infographic follows a linear narrative structure designed to educate a user from basic concepts to advanced application. It starts with a high-level hook ("The Challenge"), explains the core methodology ("How CCM Works"), introduces the problem requiring a solution ("The Need for Proof"), details the solutions ("Choosing Your Surrogate Test"), presents the practical steps ("The 5-Step Workflow"), and concludes with a critical warning ("A Critical Pitfall"). This structure was chosen to transform a dense academic paper into a digestible story, making complex information accessible to a scientific audience by building knowledge progressively. -->
+    <!-- Visualization & Content Choices: 1. Data Point: CCM's 3-step process. -> Goal: Organize. -> Chosen Visualization: A 3-card flowchart. -> Justification: Clearly visualizes a sequence of steps without complex diagrams. -> Library/Method: HTML/CSS with Tailwind. 2. Data Point: Taxonomy of 5 surrogate methods. -> Goal: Compare. -> Chosen Visualization: A responsive grid of comparison cards. -> Justification: Allows for easy side-by-side comparison of features, properties, and null hypotheses. -> Library/Method: HTML/CSS with Tailwind. 3. Data Point: High false-positive rate (up to 92%) of Random Permutation. -> Goal: Inform/Warn. -> Chosen Visualization: A large stat callout and a simple bar chart. -> Justification: The combination provides immediate visual impact and quantifies the risk, making the warning highly effective. -> Library/Method: Chart.js/Canvas. 4. Data Point: The 5-step workflow for applying surrogates. -> Goal: Organize. -> Chosen Visualization: A numbered vertical timeline/flowchart. -> Justification: Clearly illustrates the procedural steps in a logical, easy-to-follow format. -> Library/Method: HTML/CSS with Tailwind. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f2f5;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 400px;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 350px;
+            }
+        }
+    </style>
+</head>
+<body class="text-gray-800">
+
+    <div class="max-w-5xl mx-auto p-4 md:p-8">
+
+        <header class="text-center mb-12">
+            <h1 class="text-4xl md:text-5xl font-black" style="color: #003f5c;">From Correlation to Causation</h1>
+            <p class="text-xl md:text-2xl mt-2 font-medium" style="color: #58508d;">A Visual Guide to Convergent Cross Mapping & Surrogate Data Testing</p>
+        </header>
+
+        <section class="mb-16">
+            <div class="bg-white rounded-lg shadow-xl p-8 text-center">
+                <h2 class="text-3xl font-bold mb-4" style="color: #003f5c;">The Challenge: Seeing Through the Noise</h2>
+                <p class="text-lg max-w-3xl mx-auto">In complex systems like ecosystems, economies, and the human brain, variables are deeply intertwined. Distinguishing true causal links from simple correlation is a major scientific hurdle. Traditional linear methods often fail, but a powerful technique called <strong style="color: #bc5090;">Convergent Cross Mapping (CCM)</strong> offers a solution.</p>
+            </div>
+        </section>
+
+        <section class="mb-16">
+            <h2 class="text-3xl font-bold text-center mb-8" style="color: #003f5c;">How CCM Works: A 3-Step Process</h2>
+            <div class="grid md:grid-cols-3 gap-8">
+                <div class="bg-white rounded-lg shadow-lg p-6 text-center border-t-4" style="border-color: #ffa600;">
+                    <div class="text-5xl font-black mb-4" style="color: #ffa600;">1</div>
+                    <h3 class="text-xl font-bold mb-2">Reconstruct</h3>
+                    <p>CCM reconstructs a system's multidimensional "shadow manifold" from a single time series. It's like recreating a 3D object from its 2D shadow.</p>
+                </div>
+                <div class="bg-white rounded-lg shadow-lg p-6 text-center border-t-4" style="border-color: #ff6361;">
+                    <div class="text-5xl font-black mb-4" style="color: #ff6361;">2</div>
+                    <h3 class="text-xl font-bold mb-2">Cross-Map</h3>
+                    <p>If X causes Y, information about X is embedded in Y. We can use Y's manifold to skillfully predict X's past states, but not vice-versa.</p>
+                </div>
+                <div class="bg-white rounded-lg shadow-lg p-6 text-center border-t-4" style="border-color: #bc5090;">
+                    <div class="text-5xl font-black mb-4" style="color: #bc5090;">3</div>
+                    <h3 class="text-xl font-bold mb-2">Converge</h3>
+                    <p>The definitive test: as we add more data, the prediction skill ($\rho$) must systematically increase. This proves the link is real, not a coincidence.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="mb-16">
+            <div class="bg-white rounded-lg shadow-xl p-8 grid md:grid-cols-2 gap-8 items-center">
+                <div>
+                    <h2 class="text-3xl font-bold mb-4" style="color: #003f5c;">The Need for Proof</h2>
+                    <p class="text-lg mb-4">A high prediction skill ($\rho$) suggests causality, but how high is high enough? Without statistical validation, the result is arbitrary. This is where <strong style="color: #bc5090;">Surrogate Data Testing</strong> becomes essential.</p>
+                    <p>By creating thousands of artificial datasets that match the original's properties but lack a causal link, we can build a null distribution. If our original result is a significant outlier, we can confidently claim causality.</p>
+                </div>
+                <div class="chart-container">
+                    <canvas id="significanceChart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <section class="mb-16">
+            <h2 class="text-3xl font-bold text-center mb-8" style="color: #003f5c;">Choosing Your Surrogate Test</h2>
+            <p class="text-lg text-center max-w-3xl mx-auto mb-8">The choice of surrogate method defines the scientific question you're asking. Each method tests a different null hypothesis, ranging from simple randomness to complex shared dynamics.</p>
+            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <div class="bg-white rounded-lg shadow-lg p-6 flex flex-col">
+                    <h3 class="text-xl font-bold mb-2" style="color: #58508d;">Random Permutation</h3>
+                    <p class="text-sm flex-grow">Shuffles data points randomly. Preserves value distribution but destroys all time structure.</p>
+                    <div class="mt-4 pt-4 border-t">
+                        <p class="font-semibold text-sm">Null Hypothesis ($H_0$):</p>
+                        <p class="text-xs">The data is just independent, identically distributed (i.i.d.) noise.</p>
+                    </div>
+                </div>
+                <div class="bg-white rounded-lg shadow-lg p-6 flex flex-col">
+                    <h3 class="text-xl font-bold mb-2" style="color: #58508d;">Phase Randomized (FT)</h3>
+                    <p class="text-sm flex-grow">Randomizes phases in the frequency domain. Preserves linear correlations (autocorrelation).</p>
+                    <div class="mt-4 pt-4 border-t">
+                        <p class="font-semibold text-sm">Null Hypothesis ($H_0$):</p>
+                        <p class="text-xs">The data is a stationary, linear, Gaussian process.</p>
+                    </div>
+                </div>
+                <div class="bg-white rounded-lg shadow-lg p-6 flex flex-col">
+                    <h3 class="text-xl font-bold mb-2" style="color: #58508d;">IAAFT</h3>
+                    <p class="text-sm flex-grow">Iteratively preserves both the power spectrum and the value distribution. The gold standard for many non-Gaussian series.</p>
+                    <div class="mt-4 pt-4 border-t">
+                        <p class="font-semibold text-sm">Null Hypothesis ($H_0$):</p>
+                        <p class="text-xs">Data is a nonlinear transformation of a linear Gaussian process.</p>
+                    </div>
+                </div>
+                <div class="bg-white rounded-lg shadow-lg p-6 flex flex-col">
+                    <h3 class="text-xl font-bold mb-2" style="color: #58508d;">Twin Surrogates</h3>
+                    <p class="text-sm flex-grow">A complex method that preserves the system's underlying dynamics, creating a new trajectory on the same "attractor."</p>
+                    <div class="mt-4 pt-4 border-t">
+                        <p class="font-semibold text-sm">Null Hypothesis ($H_0$):</p>
+                        <p class="text-xs">The two variables are from uncoupled systems with identical dynamics.</p>
+                    </div>
+                </div>
+                <div class="bg-white rounded-lg shadow-lg p-6 flex flex-col">
+                    <h3 class="text-xl font-bold mb-2" style="color: #58508d;">Seasonal Surrogates</h3>
+                    <p class="text-sm flex-grow">Specifically designed to test for confounding by a shared cycle (e.g., seasonality).</p>
+                    <div class="mt-4 pt-4 border-t">
+                        <p class="font-semibold text-sm">Null Hypothesis ($H_0$):</p>
+                        <p class="text-xs">The relationship is entirely due to a shared seasonal driver.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="mb-16">
+            <h2 class="text-3xl font-bold text-center mb-8" style="color: #003f5c;">The 5-Step Workflow</h2>
+            <div class="max-w-md mx-auto">
+                <div class="space-y-8 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-300 before:to-transparent">
+                    <div class="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group">
+                        <div class="flex items-center justify-center w-10 h-10 rounded-full border-2 border-white bg-slate-300 group-[.is-active]:bg-emerald-500 text-slate-500 group-[.is-active]:text-emerald-50 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2" style="background-color: #003f5c; color: white;">1</div>
+                        <div class="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-white p-4 rounded-lg shadow-md">
+                            <h4 class="font-bold">Run Original CCM</h4><p class="text-sm">Calculate the observed cross-map skill, $\rho_{obs}$.</p>
+                        </div>
+                    </div>
+                    <div class="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group">
+                        <div class="flex items-center justify-center w-10 h-10 rounded-full border-2 border-white bg-slate-300 group-[.is-active]:bg-emerald-500 text-slate-500 group-[.is-active]:text-emerald-50 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2" style="background-color: #58508d; color: white;">2</div>
+                        <div class="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-white p-4 rounded-lg shadow-md">
+                            <h4 class="font-bold">Generate Surrogates</h4><p class="text-sm">Create an ensemble of 1000+ surrogates from the causal variable.</p>
+                        </div>
+                    </div>
+                    <div class="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group">
+                        <div class="flex items-center justify-center w-10 h-10 rounded-full border-2 border-white bg-slate-300 group-[.is-active]:bg-emerald-500 text-slate-500 group-[.is-active]:text-emerald-50 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2" style="background-color: #bc5090; color: white;">3</div>
+                        <div class="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-white p-4 rounded-lg shadow-md">
+                            <h4 class="font-bold">Compute Null Skills</h4><p class="text-sm">Run CCM for each surrogate to get the null distribution, $\rho_{null}$.</p>
+                        </div>
+                    </div>
+                    <div class="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group">
+                        <div class="flex items-center justify-center w-10 h-10 rounded-full border-2 border-white bg-slate-300 group-[.is-active]:bg-emerald-500 text-slate-500 group-[.is-active]:text-emerald-50 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2" style="background-color: #ff6361; color: white;">4</div>
+                        <div class="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-white p-4 rounded-lg shadow-md">
+                            <h4 class="font-bold">Compare</h4><p class="text-sm">See if $\rho_{obs}$ is an extreme outlier of the $\rho_{null}$ distribution.</p>
+                        </div>
+                    </div>
+                     <div class="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group">
+                        <div class="flex items-center justify-center w-10 h-10 rounded-full border-2 border-white bg-slate-300 group-[.is-active]:bg-emerald-500 text-slate-500 group-[.is-active]:text-emerald-50 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2" style="background-color: #ffa600; color: white;">5</div>
+                        <div class="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-white p-4 rounded-lg shadow-md">
+                            <h4 class="font-bold">Infer</h4><p class="text-sm">If p < 0.05, reject the null hypothesis and claim significant causality.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section>
+            <div class="rounded-lg shadow-xl p-8 text-center" style="background-color: #ff6361; color: white;">
+                <h2 class="text-3xl font-bold mb-4">A Critical Pitfall: The Simplest Test is Often Wrong</h2>
+                <p class="text-lg max-w-3xl mx-auto mb-6">Using <strong class="font-black">Random Permutation</strong> (shuffling) on data with any time structure (like most real-world data) is dangerous. Because it destroys all temporal patterns, any real structure is flagged as significant.</p>
+                <div class="grid md:grid-cols-2 gap-8 items-center bg-white/20 p-6 rounded-lg">
+                    <div class="text-left">
+                        <p class="text-2xl font-bold">This can lead to a</p>
+                        <p class="text-7xl md:text-8xl font-black tracking-tighter">92%</p>
+                        <p class="text-2xl font-bold">False-Positive Rate</p>
+                    </div>
+                     <div class="chart-container h-48 md:h-64">
+                        <canvas id="pitfallChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const significanceCtx = document.getElementById('significanceChart').getContext('2d');
+        new Chart(significanceCtx, {
+            type: 'bar',
+            data: {
+                labels: ['Surrogate Skills (Null Distribution)', 'Observed Skill'],
+                datasets: [{
+                    data: [100, 10], 
+                    backgroundColor: ['#58508d', '#ff6361'],
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: { display: false, max: 120 },
+                    y: { grid: { display: false } }
+                },
+                plugins: {
+                    legend: { display: false },
+                    title: {
+                        display: true,
+                        text: 'Significance: Is Your Result an Outlier?',
+                        color: '#003f5c',
+                        font: { size: 16, weight: 'bold' }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            title: function(tooltipItems) {
+                                const item = tooltipItems[0];
+                                let label = item.chart.data.labels[item.dataIndex];
+                                if (Array.isArray(label)) {
+                                  return label.join(' ');
+                                } else {
+                                  return label;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        const pitfallCtx = document.getElementById('pitfallChart').getContext('2d');
+        new Chart(pitfallCtx, {
+            type: 'bar',
+            data: {
+                labels: ['Acceptable Rate', ['False-Positive Rate', 'with Random Permutation']],
+                datasets: [{
+                    data: [5, 92],
+                    backgroundColor: ['#003f5c', '#ffa600'],
+                    borderColor: 'white',
+                    borderWidth: 2,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100,
+                        ticks: {
+                            color: 'white',
+                            callback: function(value) { return value + '%' }
+                        },
+                        grid: { color: 'rgba(255, 255, 255, 0.2)' }
+                    },
+                    x: {
+                        ticks: { color: 'white', font: { size: 14 } },
+                        grid: { display: false }
+                    }
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            title: function(tooltipItems) {
+                                const item = tooltipItems[0];
+                                let label = item.chart.data.labels[item.dataIndex];
+                                if (Array.isArray(label)) {
+                                  return label.join(' ');
+                                } else {
+                                  return label;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    });
+</script>
+
+</body>
+</html>

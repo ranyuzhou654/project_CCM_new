@@ -1,0 +1,9 @@
+numpy
+scipy
+matplotlib
+seaborn
+scikit-learn
+tqdm
+termcolor
+rich
+pyinform
