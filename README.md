@@ -4,6 +4,8 @@
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/status-stable-brightgreen.svg)](README.md)
 
+[English README](README_EN.md) | [详细技术文档](docs/技术文档.md) | [算法原理详解](docs/算法原理详解.md)
+
 ## 🎯 项目概述
 
 这是一个为**非线性动力学系统**中的因果关系检测而设计的专业级、模块化分析工具箱。基于**收敛交叉映射（CCM）**和**信息论方法**，提供从参数优化、系统模拟、因果分析到深度可视化的完整解决方案。
@@ -46,6 +48,10 @@ CCM_Analysis_Toolbox/
 │
 ├── 📂 tests/                     # ✅ 测试模块
 │   └── test_suite.py            # 综合自动化测试
+│
+├── 📂 docs/                      # 📚 文档
+│   ├── 技术文档.md                # 详细技术文档
+│   └── 算法原理详解.md             # 算法原理和数学基础
 │
 └── 📂 results/                   # 📊 结果文件夹 (自动创建)
     ├── analysis_runs/           # 批量分析结果
@@ -575,6 +581,14 @@ pyinform>=0.3.0        # 信息论计算
 - Takens嵌入定理的数学框架  
 - scipy生态系统的数值计算支持
 - matplotlib/seaborn的可视化能力
+
+---
+
+## 📚 附加文档
+
+- [English README](README_EN.md) - 完整英文版说明文档
+- [详细技术文档](docs/技术文档.md) - 包含完整的API参考、架构设计、算法实现细节
+- [算法原理详解](docs/算法原理详解.md) - CCM算法的数学理论基础、Takens嵌入定理、动力学系统理论
 
 ---
 
