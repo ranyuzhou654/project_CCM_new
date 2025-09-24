@@ -8,6 +8,7 @@ Scientific Parameter Optimization Module
 """
 
 import numpy as np
+import random
 from sklearn.neighbors import NearestNeighbors
 from sklearn.metrics import mutual_info_score
 from scipy.signal import find_peaks
@@ -142,12 +143,21 @@ def optimize_embedding_for_system(system_type, series_length=8000):
     为一个给定的动力学系统运行完整的参数优化流程。
     """
     print(colored(f"--- 开始为 {system_type.capitalize()} 系统进行参数优化 ---", "cyan"))
-    
+
+    # 为了获得可重复的嵌入参数，同时不影响后续 trial 的随机性，
+    # 在生成测试序列前暂存随机数生成器的状态。
+    np_state = np.random.get_state()
+    py_state = random.getstate()
+
     try:
+        # 使用固定种子生成代表性的测试序列
+        np.random.seed(42)
+        random.seed(42)
+
         print("正在生成测试时间序列...")
         adjacency_matrix = generate_adjacency_matrix(1, 0)
         test_series = generate_time_series(system_type, 1, adjacency_matrix, series_length, 0.0)[0]
-        
+
         if np.any(~np.isfinite(test_series)) or np.var(test_series) < 1e-10:
             print(colored("错误：生成的测试序列无效（包含NaN/Inf或无方差）。", "red"))
             return None
@@ -155,6 +165,10 @@ def optimize_embedding_for_system(system_type, series_length=8000):
     except Exception as e:
         print(colored(f"错误：生成测试序列失败: {e}", "red"))
         return None
+    finally:
+        # 恢复随机数生成器的状态，避免影响后续 trial 的随机过程
+        np.random.set_state(np_state)
+        random.setstate(py_state)
 
     optimal_tau = find_optimal_tau(test_series)
     optimal_dim = find_optimal_dim(test_series, optimal_tau)
