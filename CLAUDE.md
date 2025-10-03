@@ -25,8 +25,10 @@ This is a professional-grade CCM (Convergent Cross Mapping) Causal Analysis Tool
 
 ### Module Structure
 ```
-CCM_Analysis_Toolbox/
+project_CCM/
 ├── main.py                    # CLI entry point with argparse interface
+├── run_all_analysis.py        # Batch analysis script for all systems
+├── run_all_motifs.py          # Batch motif analysis script for all systems
 ├── core/                      # Core algorithm modules
 │   ├── systems.py            # Dynamical systems generation (Lorenz, Rössler, etc.)
 │   ├── ccm.py                # CCM core algorithm and surrogate methods
@@ -95,6 +97,15 @@ python main.py run-motifs --system lorenz
 python main.py run-motifs --system rossler --length 4000 --surrogates 200
 ```
 
+**Batch Operations**:
+```bash
+# Run comprehensive analysis across all systems and analysis types
+python run_all_analysis.py
+
+# Run motif analysis across all systems  
+python run_all_motifs.py
+```
+
 ### Available Systems
 - Classic: `lorenz`, `rossler`, `logistic`, `henon`, `mackey_glass`, `kuramoto`, `hindmarsh_rose`
 - Observational noise: `noisy_lorenz`, `noisy_rossler`, `noisy_mackey_glass`, etc.
@@ -131,4 +142,14 @@ python main.py run-motifs --system rossler --length 4000 --surrogates 200
 ### Dependencies
 Core scientific stack: numpy, scipy, matplotlib, seaborn, scikit-learn, tqdm, termcolor, rich, pyinform
 
-No additional build tools, linting, or formatting configurations are present in this repository.
+### Code Language and Structure
+- The codebase is bilingual (Chinese and English), with comments and documentation in both languages
+- The main CLI interface and user-facing messages are primarily in Chinese
+- Code structure follows scientific computing conventions with modular, reusable components
+- No additional build tools, linting, or formatting configurations are present in this repository
+
+### Debugging and Development
+- Debug scripts available: `test_systems_debug.py`, `test_stress_test.py` 
+- System stability analysis generates debug plots (e.g., `debug_*_stability.png`)
+- Results are automatically timestamped and saved as JSON with corresponding PNG visualizations
+- The toolbox uses matplotlib with Agg backend for non-interactive plotting in batch operations
