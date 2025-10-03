@@ -21,6 +21,108 @@ import seaborn as sns
 from core.systems import generate_time_series, generate_adjacency_matrix
 
 
+def adaptive_optimize_embedding_params(system_type, analysis_type, current_value, base_length=8000, **kwargs):
+    """
+    根据分析类型和当前实验变量自适应优化嵌入参数。
+    
+    参数:
+    - system_type: 系统类型
+    - analysis_type: 分析类型 ('length', 'coupling', 'noise', 'degree', 'nodes')
+    - current_value: 当前实验变量的值
+    - base_length: 基础序列长度
+    - **kwargs: 其他参数
+    
+    返回:
+    - dict: 包含最佳 Dim 和 tau 的字典
+    """
+    
+    # 敏感系统列表，需要特殊处理
+    sensitive_systems = ["henon", "noisy_henon", "henon_dynamic_noise", 
+                        "rossler", "noisy_rossler", "rossler_dynamic_noise"]
+    
+    # 确定是否需要重新优化参数
+    should_reoptimize = False
+    optimization_params = {}
+    
+    if analysis_type == "length":
+        # 长度分析：当测试长度与基础长度差异较大时重新优化
+        length_ratio = current_value / base_length
+        if length_ratio < 0.5 or length_ratio > 2.0 or system_type in sensitive_systems:
+            should_reoptimize = True
+            optimization_params = {"series_length": current_value}
+            
+    elif analysis_type == "noise" and system_type.startswith("noisy_"):
+        # 噪声分析：当噪声水平较高时重新优化
+        if current_value > 0.1 or system_type in sensitive_systems:
+            should_reoptimize = True
+            optimization_params = {"series_length": base_length, "noise_level": current_value}
+            
+    elif analysis_type == "coupling":
+        # 耦合分析：对敏感系统在强耦合时重新优化
+        if (current_value > 0.5 and system_type in sensitive_systems) or current_value > 1.0:
+            should_reoptimize = True
+            optimization_params = {"series_length": base_length, "coupling": current_value}
+            
+    elif system_type in sensitive_systems:
+        # 敏感系统：总是进行额外检查
+        should_reoptimize = True
+        optimization_params = {"series_length": base_length}
+    
+    if should_reoptimize:
+        print(colored(f"为 {system_type} 系统在 {analysis_type}={current_value} 条件下重新优化参数...", "cyan"))
+        
+        # 使用特定参数重新优化
+        if analysis_type == "length":
+            adaptive_params = optimize_embedding_for_system(system_type, series_length=current_value)
+        elif analysis_type == "noise":
+            # 为噪声分析创建带噪声的测试序列
+            adaptive_params = _optimize_with_noise(system_type, base_length, current_value)
+        else:
+            # 其他情况使用默认优化
+            adaptive_params = optimize_embedding_for_system(system_type, series_length=base_length)
+            
+        if adaptive_params:
+            print(colored(f"✅ 自适应参数: Dim={adaptive_params['Dim']}, tau={adaptive_params['tau']}", "green"))
+            return adaptive_params
+        else:
+            print(colored("❌ 自适应优化失败，回退到默认参数", "yellow"))
+    
+    # 回退到默认参数优化
+    return optimize_embedding_for_system(system_type, series_length=base_length)
+
+
+def _optimize_with_noise(system_type, series_length, noise_level):
+    """为带噪声的系统优化参数"""
+    try:
+        # 生成带噪声的测试序列
+        np.random.seed(42)
+        random.seed(42)
+        adjacency_matrix = generate_adjacency_matrix(1, 0)
+        
+        # 使用噪声系统类型
+        if not system_type.startswith("noisy_"):
+            noisy_system_type = f"noisy_{system_type}"
+        else:
+            noisy_system_type = system_type
+            
+        test_series = generate_time_series(
+            noisy_system_type, 1, adjacency_matrix, series_length, 0.0, noise_level=noise_level
+        )[0]
+        
+        if np.any(~np.isfinite(test_series)) or np.var(test_series) < 1e-10:
+            return None
+            
+        # 优化参数
+        optimal_tau = find_optimal_tau(test_series, max_tau=min(50, series_length // 10), plot=False)
+        optimal_dim = find_optimal_dim(test_series, optimal_tau, max_dim=10, plot=False)
+        
+        return {"Dim": optimal_dim, "tau": optimal_tau}
+        
+    except Exception as e:
+        print(colored(f"带噪声参数优化失败: {e}", "red"))
+        return None
+
+
 def _calculate_ami(series, max_tau):
     """计算给定序列的平均互信息(AMI)。"""
     amis = []
