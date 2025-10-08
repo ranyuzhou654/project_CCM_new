@@ -9,6 +9,7 @@ Core Analysis Workflow Module
 
 import json
 import os
+import random
 from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime  # 导入 datetime
 
@@ -27,7 +28,10 @@ from .ccm import (
     adaptive_surrogate_testing,
     bootstrap_auroc_confidence,
 )
-from utils.params import optimize_embedding_for_system, adaptive_optimize_embedding_params
+from utils.params import (
+    optimize_embedding_for_system,
+    adaptive_optimize_embedding_params,
+)
 
 
 def _determine_worker_count(requested_workers, num_trials):
@@ -52,7 +56,7 @@ def _run_single_trial_worker(params):
 def _execute_trials(current_params, num_trials, max_workers=None):
     """
     Run multiple trials either sequentially or in a process pool.
-    
+
     改进: 使用 SeedSequence 为每个试验分配独立的种子，避免多进程环境中的种子冲突。
     """
 
@@ -130,28 +134,30 @@ def run_single_trial(params):
     compute_bootstrap = params.get(
         "compute_bootstrap", False
     )  # 是否计算bootstrap置信区间
-    
+
     # 现代化随机种子管理
     trial_seed = params.get("trial_seed", None)
     if trial_seed is not None:
         # 处理 SeedSequence 对象
-        if hasattr(trial_seed, 'generate_state'):
+        if hasattr(trial_seed, "generate_state"):
             # 这是一个 SeedSequence 对象，需要生成整数种子
             rng = np.random.default_rng(trial_seed)
             # 为向后兼容性生成整数种子
             int_seed = int(trial_seed.generate_state(1)[0])
             np.random.seed(int_seed)
+            random.seed(int_seed)
         else:
             # 这是一个整数种子
             rng = np.random.default_rng(trial_seed)
             np.random.seed(trial_seed)
+            random.seed(trial_seed)
     else:
         # 如果没有提供种子，使用默认随机状态
         rng = np.random.default_rng()
 
     # 1. 生成数据和质量检查
     max_regeneration_attempts = 3  # 最大重新生成次数
-    
+
     for attempt in range(max_regeneration_attempts):
         adjacency_matrix = generate_adjacency_matrix(num_systems, degree)
         time_series = generate_time_series(
@@ -166,43 +172,46 @@ def run_single_trial(params):
         # 基础有效性检查
         if np.any(~np.isfinite(time_series)):
             if attempt == max_regeneration_attempts - 1:
-                result = {"auroc": 0.5, "scores": np.full((num_systems, num_systems), 0.5)}
+                result = {
+                    "auroc": 0.5,
+                    "scores": np.full((num_systems, num_systems), 0.5),
+                }
                 if compute_bootstrap:
                     result["bootstrap_ci"] = (0.5, 0.5)
                 return result
             continue
-        
+
         # 质量检查：检查序列是否"足够混沌"
         series_quality_ok = True
         min_variance_threshold = 1e-8  # 最小方差阈值
-        max_variance_ratio = 1000.0    # 最大方差比阈值（避免数值爆炸）
-        
+        max_variance_ratio = 1000.0  # 最大方差比阈值（避免数值爆炸）
+
         for i in range(num_systems):
             series_var = np.var(time_series[i])
             series_mean = np.abs(np.mean(time_series[i]))
-            
+
             # 检查方差是否过小（可能陷入同步状态）
             if series_var < min_variance_threshold:
                 series_quality_ok = False
                 break
-                
+
             # 检查方差是否过大（可能数值发散）
             if series_mean > 0 and series_var / (series_mean**2) > max_variance_ratio:
                 series_quality_ok = False
                 break
-                
+
             # 对于敏感系统（如Henon），进行额外检查
             if system_type in ["henon", "noisy_henon", "henon_dynamic_noise"]:
                 # 检查序列是否退化为常数（Henon系统的常见问题）
                 if np.std(time_series[i]) < 0.001:
                     series_quality_ok = False
                     break
-                    
+
                 # 检查是否存在数值溢出
                 if np.max(np.abs(time_series[i])) > 10.0:
                     series_quality_ok = False
                     break
-        
+
         if series_quality_ok:
             break
         elif attempt == max_regeneration_attempts - 1:
@@ -210,7 +219,9 @@ def run_single_trial(params):
             result = {"auroc": 0.5, "scores": np.full((num_systems, num_systems), 0.5)}
             if compute_bootstrap:
                 result["bootstrap_ci"] = (0.5, 0.5)
-            result["quality_warning"] = "Time series quality check failed after multiple attempts"
+            result["quality_warning"] = (
+                "Time series quality check failed after multiple attempts"
+            )
             return result
 
     true_causality = adjacency_matrix.T.flatten()
@@ -659,20 +670,26 @@ def run_full_analysis(
     results_raw = {m: [] for m in methods}
 
     for value in tqdm(variable_param_values, desc=f"Processing {x_label}"):
-        
+
         # 自适应参数优化：根据当前变量值重新评估参数
         adaptive_params = adaptive_optimize_embedding_params(
             system_type, analysis_type, value, base_length=8000
         )
-        
+
         # 如果自适应优化成功，使用新参数
         if adaptive_params and adaptive_params != optimal_params:
-            print(colored(f"使用自适应参数 (Dim={adaptive_params['Dim']}, tau={adaptive_params['tau']}) 于 {analysis_type}={value}", "blue"))
+            print(
+                colored(
+                    f"使用自适应参数 (Dim={adaptive_params['Dim']},"
+                    f" tau={adaptive_params['tau']}) 于 {analysis_type}={value}",
+                    "blue",
+                )
+            )
             current_base_params = base_params.copy()
             current_base_params.update(adaptive_params)
         else:
             current_base_params = base_params
-        
+
         for method in methods:
             auroc_trials_for_value = []
             current_params = current_base_params.copy()
