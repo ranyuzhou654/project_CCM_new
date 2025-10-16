@@ -158,8 +158,15 @@ def run_single_trial(params):
     # 1. 生成数据和质量检查
     max_regeneration_attempts = 3  # 最大重新生成次数
 
+    # 优先使用外部传入的固定邻接矩阵，以保证同一 x 值下 trials 共享真值
+    fixed_adjacency = params.get("fixed_adjacency")
+
     for attempt in range(max_regeneration_attempts):
-        adjacency_matrix = generate_adjacency_matrix(num_systems, degree)
+        adjacency_matrix = (
+            fixed_adjacency
+            if fixed_adjacency is not None
+            else generate_adjacency_matrix(num_systems, degree)
+        )
         time_series = generate_time_series(
             system_type,
             num_systems,
@@ -172,12 +179,15 @@ def run_single_trial(params):
         # 基础有效性检查
         if np.any(~np.isfinite(time_series)):
             if attempt == max_regeneration_attempts - 1:
+                # 返回保守的默认结果，并携带标签维度信息
                 result = {
                     "auroc": 0.5,
                     "scores": np.full((num_systems, num_systems), 0.5),
                 }
                 if compute_bootstrap:
                     result["bootstrap_ci"] = (0.5, 0.5)
+                # 维持流水线兼容性
+                result["true_causality"] = np.zeros(num_systems * num_systems, dtype=int)
                 return result
             continue
 
@@ -224,7 +234,8 @@ def run_single_trial(params):
             )
             return result
 
-    true_causality = adjacency_matrix.T.flatten()
+    # 标签矩阵（用于下游统计与可视化）
+    labels_mat = adjacency_matrix.T.astype(int)
 
     # 2. 计算CCM和改进的置信度分数
     scores = np.zeros((num_systems, num_systems))
@@ -284,23 +295,30 @@ def run_single_trial(params):
                     )
                     scores[i, j] = confidence_score
 
-    # 3. 计算AUROC
-    if scores.flatten().shape != true_causality.shape:
+    # 3. 计算AUROC（剔除对角项）
+    scores_mat = np.asarray(scores, dtype=float)
+    offdiag_mask = ~np.eye(num_systems, dtype=bool)
+    scores_vec = scores_mat[offdiag_mask]
+    labels_vec = labels_mat[offdiag_mask]
+
+    # 基本一致性检查
+    if scores_vec.shape[0] != labels_vec.shape[0] or scores_mat.size != labels_mat.size:
         result = {"auroc": 0.5, "scores": np.full((num_systems, num_systems), 0.5)}
         if compute_bootstrap:
             result["bootstrap_ci"] = (0.5, 0.5)
+        result["true_causality"] = labels_mat.flatten()
         return result
 
     try:
-        fpr, tpr, _ = roc_curve(true_causality, scores.flatten())
+        fpr, tpr, _ = roc_curve(labels_vec, scores_vec)
         auroc = auc(fpr, tpr)
 
         # 计算bootstrap置信区间（如果请求）
         bootstrap_ci = None
         if compute_bootstrap:
             _, bootstrap_ci = bootstrap_auroc_confidence(
-                scores.flatten(),
-                true_causality,
+                scores_vec,
+                labels_vec,
                 n_bootstrap=1000,
                 confidence_level=0.95,
             )
@@ -317,6 +335,9 @@ def run_single_trial(params):
 
     if use_adaptive:
         result["adaptive_info"] = adaptive_info
+
+    # 维持下游兼容：返回标签的扁平化形式
+    result["true_causality"] = labels_mat.flatten()
 
     return result
 
@@ -439,10 +460,31 @@ def run_enhanced_analysis(
 
     print(colored("\n--- [步骤 2/4] 正在执行增强版性能分析... ---", "cyan"))
     results_raw = {m: [] for m in methods}
+
+    nominal_sizes = np.linspace(0.01, 0.25, 25)
+    thresholds = 1 - nominal_sizes
+    fp_counts = {m: np.zeros_like(nominal_sizes, dtype=float) for m in methods}
+    tp_counts = {m: np.zeros_like(nominal_sizes, dtype=float) for m in methods}
+    null_totals = {m: 0.0 for m in methods}
+    true_totals = {m: 0.0 for m in methods}
     bootstrap_results = {m: [] for m in methods}  # 存储bootstrap置信区间
     adaptive_stats = {m: [] for m in methods}  # 存储自适应统计信息
 
     for value in tqdm(variable_param_values, desc=f"Processing {x_label}"):
+        # 为每个 x 值固定一次邻接矩阵（真值图），用于所有 trials 与方法
+        if analysis_type == "nodes":
+            num_nodes = value
+            degree = int(base_params["avg_degree"] * num_nodes)
+            max_degree = num_nodes * (num_nodes - 1)
+            fixed_degree = min(max_degree, degree)
+            fixed_adj = generate_adjacency_matrix(num_nodes, fixed_degree)
+        else:
+            ns_for_adj = (base_params.get("num_systems", 5)
+                          if variable_param_name != "num_systems" else value)
+            deg_for_adj = (base_params.get("degree", 5)
+                           if variable_param_name != "degree" else int(value))
+            fixed_adj = generate_adjacency_matrix(ns_for_adj, deg_for_adj)
+
         for method in methods:
             auroc_trials_for_value = []
             bootstrap_cis_for_value = []
@@ -451,6 +493,7 @@ def run_enhanced_analysis(
             current_params = base_params.copy()
             current_params[variable_param_name] = value
             current_params["method"] = method
+            current_params["fixed_adjacency"] = fixed_adj
 
             if analysis_type == "nodes":
                 num_nodes = value
@@ -470,6 +513,28 @@ def run_enhanced_analysis(
 
                 if use_adaptive and "adaptive_info" in result:
                     adaptive_info_for_value.append(result["adaptive_info"])
+
+                if "scores" in result and "true_causality" in result:
+                    score_matrix = np.asarray(result["scores"], dtype=float)
+                    true_labels_flat = np.asarray(result["true_causality"], dtype=int)
+                    # 剔除对角项以进行 size/power 统计
+                    n_sys = score_matrix.shape[0]
+                    if (score_matrix.ndim == 2 and score_matrix.shape[0] == score_matrix.shape[1]
+                            and true_labels_flat.size == score_matrix.size):
+                        offdiag = ~np.eye(n_sys, dtype=bool)
+                        scores_filtered = score_matrix[offdiag]
+                        labels_filtered = true_labels_flat.reshape(n_sys, n_sys)[offdiag]
+                        null_mask = labels_filtered == 0
+                        true_mask = labels_filtered == 1
+                        null_count = int(null_mask.sum())
+                        true_count = int(true_mask.sum())
+                        null_totals[method] += null_count
+                        true_totals[method] += true_count
+                        if null_count > 0 and true_count > 0:
+                            for idx_thr, thr in enumerate(thresholds):
+                                detections = scores_filtered >= thr
+                                fp_counts[method][idx_thr] += np.logical_and(detections, null_mask).sum()
+                                tp_counts[method][idx_thr] += np.logical_and(detections, true_mask).sum()
 
             results_raw[method].append(auroc_trials_for_value)
 
@@ -526,6 +591,46 @@ def run_enhanced_analysis(
         confidence_method=confidence_method,
     )
 
+    true_size_curves = {}
+    power_curves = {}
+    for method in methods:
+        true_size_curve = np.divide(
+            fp_counts[method],
+            null_totals[method],
+            out=np.zeros_like(fp_counts[method]),
+            where=null_totals[method] > 0
+        )
+        power_curve = np.divide(
+            tp_counts[method],
+            true_totals[method],
+            out=np.zeros_like(tp_counts[method]),
+            where=true_totals[method] > 0
+        )
+        true_size_curves[method] = true_size_curve
+        power_curves[method] = power_curve
+
+    size_power_path = save_path.replace(".png", "_size_power.png")
+    visualizer.plot_nominal_size_evaluation(
+        nominal_sizes,
+        true_size_curves,
+        power_curves,
+        methods,
+        title=f"Enhanced Size & Power Evaluation ({system_type.capitalize()})",
+        save_path=size_power_path,
+    )
+
+    print(colored(f"📈 Size/Power 图表: {size_power_path}", "blue"))
+
+    power_vs_size_path = save_path.replace(".png", "_tpr_fpr.png")
+    visualizer.plot_power_vs_true_size(
+        true_size_curves,
+        power_curves,
+        methods,
+        title=f"Enhanced Power vs True Size ({system_type.capitalize()})",
+        save_path=power_vs_size_path,
+    )
+    print(colored(f"📈 Power vs True Size 图表: {power_vs_size_path}", "blue"))
+
     print(colored("\n--- [步骤 4/4] 正在保存详细结果数据... ---", "cyan"))
 
     # 保存增强版结果
@@ -552,6 +657,16 @@ def run_enhanced_analysis(
 
     if use_adaptive:
         enhanced_results["adaptive_stats"] = adaptive_stats
+
+    enhanced_results["size_power_analysis"] = {
+        "nominal_sizes": nominal_sizes.tolist(),
+        "true_size": {m: curve.tolist() for m, curve in true_size_curves.items()},
+        "power": {m: curve.tolist() for m, curve in power_curves.items()},
+        "null_edge_totals": {m: null_totals[m] for m in methods},
+        "true_edge_totals": {m: true_totals[m] for m in methods},
+        "size_power_plot": size_power_path,
+        "power_vs_size_plot": power_vs_size_path,
+    }
 
     results_file = f"enhanced_results_{system_type}_{analysis_type}_{timestamp}.json"
     with open(results_file, "w", encoding="utf-8") as f:
@@ -690,11 +805,26 @@ def run_full_analysis(
         else:
             current_base_params = base_params
 
+        # 为每个 x 值固定一次邻接矩阵（真值图），用于所有 trials 与方法
+        if analysis_type == "nodes":
+            num_nodes = value
+            degree = int(base_params["avg_degree"] * num_nodes)
+            max_degree = num_nodes * (num_nodes - 1)
+            fixed_degree = min(max_degree, degree)
+            fixed_adj = generate_adjacency_matrix(num_nodes, fixed_degree)
+        else:
+            ns_for_adj = (base_params.get("num_systems", 5)
+                          if variable_param_name != "num_systems" else value)
+            deg_for_adj = (base_params.get("degree", 5)
+                           if variable_param_name != "degree" else int(value))
+            fixed_adj = generate_adjacency_matrix(ns_for_adj, deg_for_adj)
+
         for method in methods:
             auroc_trials_for_value = []
             current_params = current_base_params.copy()
             current_params[variable_param_name] = value
             current_params["method"] = method
+            current_params["fixed_adjacency"] = fixed_adj
 
             if analysis_type == "nodes":
                 num_nodes = value
@@ -716,6 +846,28 @@ def run_full_analysis(
                     # 向后兼容旧格式
                     auroc = result[0] if isinstance(result, tuple) else result
                 auroc_trials_for_value.append(auroc)
+
+                if isinstance(result, dict) and "scores" in result and "true_causality" in result:
+                    score_matrix = np.asarray(result["scores"], dtype=float)
+                    true_labels_flat = np.asarray(result["true_causality"], dtype=int)
+                    # 剔除对角项以进行 size/power 统计
+                    n_sys = score_matrix.shape[0]
+                    if (score_matrix.ndim == 2 and score_matrix.shape[0] == score_matrix.shape[1]
+                            and true_labels_flat.size == score_matrix.size):
+                        offdiag = ~np.eye(n_sys, dtype=bool)
+                        scores_filtered = score_matrix[offdiag]
+                        labels_filtered = true_labels_flat.reshape(n_sys, n_sys)[offdiag]
+                        null_mask = labels_filtered == 0
+                        true_mask = labels_filtered == 1
+                        null_count = int(null_mask.sum())
+                        true_count = int(true_mask.sum())
+                        null_totals[method] += null_count
+                        true_totals[method] += true_count
+                        if null_count > 0 and true_count > 0:
+                            for idx_thr, thr in enumerate(thresholds):
+                                detections = scores_filtered >= thr
+                                fp_counts[method][idx_thr] += np.logical_and(detections, null_mask).sum()
+                                tp_counts[method][idx_thr] += np.logical_and(detections, true_mask).sum()
 
             results_raw[method].append(auroc_trials_for_value)
 
@@ -751,6 +903,43 @@ def run_full_analysis(
         constant_params=constant_params,  # 传递给可视化函数
     )
 
+    true_size_curves = {}
+    power_curves = {}
+    for method in methods:
+        true_size_curve = np.divide(
+            fp_counts[method],
+            null_totals[method],
+            out=np.zeros_like(fp_counts[method]),
+            where=null_totals[method] > 0
+        )
+        power_curve = np.divide(
+            tp_counts[method],
+            true_totals[method],
+            out=np.zeros_like(tp_counts[method]),
+            where=true_totals[method] > 0
+        )
+        true_size_curves[method] = true_size_curve
+        power_curves[method] = power_curve
+
+    size_power_path = save_path.replace(".png", "_size_power.png")
+    visualizer.plot_nominal_size_evaluation(
+        nominal_sizes,
+        true_size_curves,
+        power_curves,
+        methods,
+        title=f"Size & Power Evaluation ({system_type.capitalize()})",
+        save_path=size_power_path,
+    )
+
+    power_vs_size_path = save_path.replace(".png", "_tpr_fpr.png")
+    visualizer.plot_power_vs_true_size(
+        true_size_curves,
+        power_curves,
+        methods,
+        title=f"Power vs True Size ({system_type.capitalize()})",
+        save_path=power_vs_size_path,
+    )
+
     results_data = {
         "x_values": (
             x_plot_values if isinstance(x_plot_values, list) else x_plot_values.tolist()
@@ -766,6 +955,15 @@ def run_full_analysis(
             "num_trials": num_trials,
             "num_surrogates": num_surrogates,
             "methods": methods,
+        },
+        "size_power_analysis": {
+            "nominal_sizes": nominal_sizes.tolist(),
+            "true_size": {m: curve.tolist() for m, curve in true_size_curves.items()},
+            "power": {m: curve.tolist() for m, curve in power_curves.items()},
+            "null_edge_totals": {m: null_totals[m] for m in methods},
+            "true_edge_totals": {m: true_totals[m] for m in methods},
+            "size_power_plot": size_power_path,
+            "power_vs_size_plot": power_vs_size_path,
         },
     }
 

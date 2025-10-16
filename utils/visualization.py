@@ -126,6 +126,129 @@ class VisualizationSuite:
 
         plt.show()
 
+    def plot_nominal_size_evaluation(
+        self,
+        nominal_sizes,
+        true_size_curves,
+        power_curves,
+        methods,
+        title="Nominal Size Evaluation",
+        save_path=None,
+    ):
+        """绘制 true size 与 power 随名义显著性水平变化的曲线。"""
+
+        nominal_sizes = np.asarray(nominal_sizes)
+        fig, axes = plt.subplots(1, 2, figsize=(18, 6), sharex=True)
+
+        ax_size, ax_power = axes
+
+        for method in methods:
+            color = self.color_palette.get(method, None)
+            line_style = self.line_styles.get(method, '-')
+            size_curve = true_size_curves.get(method)
+            power_curve = power_curves.get(method)
+
+            if size_curve is not None:
+                ax_size.plot(
+                    nominal_sizes,
+                    size_curve,
+                    label=method,
+                    linestyle=line_style,
+                    color=color,
+                    linewidth=2,
+                )
+            if power_curve is not None:
+                ax_power.plot(
+                    nominal_sizes,
+                    power_curve,
+                    label=method,
+                    linestyle=line_style,
+                    color=color,
+                    linewidth=2,
+                )
+
+        ax_size.plot(
+            nominal_sizes,
+            nominal_sizes,
+            color="black",
+            linestyle="--",
+            linewidth=1.5,
+            label="Nominal = Empirical",
+        )
+        ax_size.set_title("True Size vs Nominal Size")
+        ax_size.set_xlabel("Nominal Size (α)")
+        ax_size.set_ylabel("Empirical False Positive Rate")
+        ax_size.set_xlim(nominal_sizes.min(), nominal_sizes.max())
+        ax_size.set_ylim(0, min(1.0, nominal_sizes.max() * 1.4))
+        ax_size.legend(loc="upper left")
+
+        ax_power.set_title("Power vs Nominal Size")
+        ax_power.set_xlabel("Nominal Size (α)")
+        ax_power.set_ylabel("Empirical True Positive Rate")
+        ax_power.set_xlim(nominal_sizes.min(), nominal_sizes.max())
+        ax_power.set_ylim(0, 1.05)
+        ax_power.legend(loc="lower right")
+
+        fig.suptitle(title, fontsize=18, y=1.02)
+        plt.tight_layout()
+
+        if save_path:
+            try:
+                plt.savefig(save_path, dpi=300, bbox_inches="tight")
+                print(colored(f"✅ Size/Power 图表已保存至: {save_path}", "green"))
+            except Exception as exc:
+                print(colored(f"❌ 保存 Size/Power 图表失败: {exc}", "red"))
+
+        plt.show()
+
+    def plot_power_vs_true_size(
+        self,
+        true_size_curves,
+        power_curves,
+        methods,
+        title="Power vs True Size",
+        save_path=None,
+    ):
+        """绘制功效随实际假阳性率变化的曲线（TPR vs FPR）。"""
+
+        fig, ax = plt.subplots(figsize=(8, 6))
+
+        for method in methods:
+            fpr = true_size_curves.get(method)
+            tpr = power_curves.get(method)
+            if fpr is None or tpr is None:
+                continue
+            color = self.color_palette.get(method, None)
+            line_style = self.line_styles.get(method, '-')
+            ax.plot(
+                fpr,
+                tpr,
+                label=method,
+                linestyle=line_style,
+                linewidth=2,
+                color=color,
+            )
+
+        ax.plot([0, 1], [0, 1], linestyle="--", color="black", linewidth=1.2, label="Random Guess")
+        ax.set_title(title)
+        ax.set_xlabel("Empirical False Positive Rate (True Size)")
+        ax.set_ylabel("Empirical True Positive Rate (Power)")
+        ax.set_xlim(0, 1)
+        ax.set_ylim(0, 1)
+        ax.legend(loc="lower right")
+        ax.grid(True, alpha=0.3)
+
+        plt.tight_layout()
+
+        if save_path:
+            try:
+                plt.savefig(save_path, dpi=300, bbox_inches="tight")
+                print(colored(f"✅ Power vs True Size 图表已保存至: {save_path}", "green"))
+            except Exception as exc:
+                print(colored(f"❌ 保存 Power vs True Size 图表失败: {exc}", "red"))
+
+        plt.show()
+
     def create_enhanced_performance_plot(
         self,
         x_values,
@@ -248,8 +371,10 @@ class VisualizationSuite:
             marker = self.marker_styles.get(method, "o")
             linestyle = self.line_styles.get(method, "-")
 
-            means = results_mean[method]
-            stds = results_std[method]
+            means = np.array(results_mean[method])
+            stds = np.array(results_std[method])
+            # 使用 95% CI：均值 ± 1.96 * (std / sqrt(n))
+            std_err = stds / np.sqrt(max(1, num_trials))
 
             # 绘制主要性能曲线和标准误差带
             ax.plot(
@@ -265,8 +390,8 @@ class VisualizationSuite:
             )
             ax.fill_between(
                 x_values,
-                np.array(means) - np.array(stds),
-                np.array(means) + np.array(stds),
+                means - 1.96 * std_err,
+                means + 1.96 * std_err,
                 color=color,
                 alpha=0.2,
             )

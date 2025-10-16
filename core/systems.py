@@ -69,8 +69,8 @@ def _lorenz_ode(state, t, sigma, rho, beta, adjacency_matrix, epsilon, state_std
     dxdt = sigma * (y - x)
     dydt = x * (rho - z) - y
     dzdt = x * y - beta * z
-    # 使用第一个维度的标准差来缩放耦合强度
-    epsilon_effective = epsilon * state_std[0]
+    # 统一耦合强度缩放：直接使用 epsilon（不随状态标准差变化）
+    epsilon_effective = epsilon
     for i in range(num_systems):
         for j in range(num_systems):
             if adjacency_matrix[j, i] == 1:
@@ -360,7 +360,8 @@ def generate_logistic_series(
 
     states = np.zeros((t_steps, num_systems))
     states[0] = pre_states[-1]
-    epsilon_effective = epsilon * 0.1  # 原始缩放
+    # 统一耦合强度缩放：直接使用 epsilon
+    epsilon_effective = epsilon
 
     for i in range(1, t_steps):
         state_prev = states[i - 1]
